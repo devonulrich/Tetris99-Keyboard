@@ -38,6 +38,9 @@ def key_down(key):
         # press both R and L
         keys['r'] = True
         keys['l'] = True
+    elif key == Key.esc:
+        # quit
+        return False
 
 def key_up(key):
     if key == Key.up:
@@ -79,7 +82,7 @@ async def _main(bt_addr):
     # start key listener thread
     listener = None
     try:
-        listener = Listener(on_press=key_down, on_release=key_up)
+        listener = Listener(on_press=key_down, on_release=key_up, suppress=True)
     except:
         raise
     finally:
@@ -87,7 +90,7 @@ async def _main(bt_addr):
 
     # await button_push(controller_state, 'home', sec=5)
     pastTime = time.time()
-    while True:
+    while listener.running:
         await main_loop(controller_state)
         # currTime = time.time()
         # print(currTime - pastTime)
