@@ -9,6 +9,7 @@ from joycontrol.controller import Controller
 from joycontrol.controller_state import ControllerState, button_push
 from joycontrol.protocol import controller_protocol_factory
 from joycontrol.server import create_hid_server
+from joycontrol.memory import FlashMemory
 
 # keyboard order: up, down, left, right, space, c, enter
 keys = {
@@ -21,7 +22,10 @@ keys = {
     'l': False
 }
 
+direction = 0
+
 def key_down(key):
+    global direction
     if key == Key.up:
         keys['a'] = True
     elif key == Key.down:
@@ -38,6 +42,8 @@ def key_down(key):
         # press both R and L
         keys['r'] = True
         keys['l'] = True
+    elif key == KeyCode.from_char('a'):
+        direction = (direction + 1) % 5
     elif key == Key.esc:
         # quit
         return False
@@ -66,12 +72,27 @@ async def main_loop(controller_state):
     for key in keys:
         button_state.set_button(key, pushed=keys[key])
 
+    stick_state = controller_state.r_stick_state
+    if direction == 0:
+        stick_state.set_center()
+    elif direction == 1:
+        stick_state.set_right()
+    elif direction == 2:
+        stick_state.set_down()
+    elif direction == 3:
+        stick_state.set_left()
+    else:
+        stick_state.set_up()
+
     await controller_state.send()
     # await asyncio.sleep(1/60)
 
 async def _main(bt_addr):
     # connect via bluetooth
-    factory = controller_protocol_factory(Controller.PRO_CONTROLLER)
+    # TODO: add some error handling for opening the spi file
+    spi_flash = FlashMemory(open("spi", "rb").read())
+
+    factory = controller_protocol_factory(Controller.PRO_CONTROLLER, spi_flash=spi_flash)
     transport, protocol = await create_hid_server(factory,
         reconnect_bt_addr=bt_addr, ctl_psm=17, itr_psm=19)
 
