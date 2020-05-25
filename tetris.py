@@ -10,6 +10,13 @@ from joycontrol.protocol import controller_protocol_factory
 from joycontrol.server import create_hid_server
 from joycontrol.memory import FlashMemory
 
+class Direction:
+    CENTER = 0
+    UP = 1
+    DOWN = 2
+    LEFT = 3
+    RIGHT = 4
+
 class KeyboardState:
     def __init__(self):
         # key order: up, down, left, right, space, c, enter
@@ -22,7 +29,9 @@ class KeyboardState:
 			'r': False,
 			'l': False
 		}
-        self.direction = 0
+        self.direction = Direction.CENTER
+        self.last_dir_change = 0
+
 
     def key_down(self, key):
         global direction
@@ -42,8 +51,20 @@ class KeyboardState:
             # press both R and L
             self.keys['r'] = True
             self.keys['l'] = True
+
         elif key == KeyCode.from_char('a'):
-            self.direction = (self.direction + 1) % 5
+            self.direction = Direction.LEFT
+            self.last_dir_change = time.time()
+        elif key == KeyCode.from_char('d'):
+            self.direction = Direction.RIGHT
+            self.last_dir_change = time.time()
+        elif key == KeyCode.from_char('w'):
+            self.direction = Direction.UP
+            self.last_dir_change = time.time()
+        elif key == KeyCode.from_char('s'):
+            self.direction = Direction.DOWN
+            self.last_dir_change = time.time()
+
         elif key == Key.esc:
             # quit
             return False
@@ -75,16 +96,20 @@ async def main_loop(controller_state, keyboard_state):
         button_state.set_button(key, pushed=keyboard_state.keys[key])
 
     stick_state = controller_state.r_stick_state
-    if keyboard_state.direction == 0:
-        stick_state.set_center()
-    elif keyboard_state.direction == 1:
-        stick_state.set_right()
-    elif keyboard_state.direction == 2:
-        stick_state.set_down()
-    elif keyboard_state.direction == 3:
+    if keyboard_state.direction == Direction.LEFT:
         stick_state.set_left()
-    else:
+    elif keyboard_state.direction == Direction.RIGHT:
+        stick_state.set_right()
+    elif keyboard_state.direction == Direction.UP:
         stick_state.set_up()
+    elif keyboard_state.direction == Direction.DOWN:
+        stick_state.set_down()
+    else:
+        stick_state.set_center()
+
+    # reset to center after moving in any direction
+    if time.time() - keyboard_state.last_dir_change >= 0.25:
+        keyboard_state.direction = Direction.CENTER
 
     await controller_state.send()
     # await asyncio.sleep(1/60)
@@ -92,10 +117,12 @@ async def main_loop(controller_state, keyboard_state):
 
 
 async def _main(bt_addr):
-    # connect via bluetooth
-    # TODO: add some error handling for opening the spi file
-    spi_flash = FlashMemory(open("spi", "rb").read())
+    # set up controller's flash memory data
+    f = open('spi', 'rb')
+    spi_flash = FlashMemory(f.read())
+    f.close()
 
+    # connect via bluetooth
     factory = controller_protocol_factory(Controller.PRO_CONTROLLER, spi_flash=spi_flash)
     transport, protocol = await create_hid_server(factory,
         reconnect_bt_addr=bt_addr, ctl_psm=17, itr_psm=19)
@@ -115,9 +142,9 @@ async def _main(bt_addr):
     while listener.running:
         await main_loop(controller_state, keyboard_state)
         # For debugging: display how long it takes to send the controller state
-        # currTime = time.time()
-        # print(currTime - pastTime)
-        # pastTime = currTime
+        currTime = time.time()
+        print(currTime - pastTime)
+        pastTime = currTime
 
 
 
