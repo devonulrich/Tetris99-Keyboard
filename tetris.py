@@ -4,14 +4,13 @@ import asyncio
 
 from pynput.keyboard import Key, KeyCode, Listener
 
-from joycontrol import *
 from joycontrol.controller import Controller
-from joycontrol.controller_state import ControllerState, button_push
+from joycontrol.controller_state import ControllerState
 from joycontrol.protocol import controller_protocol_factory
 from joycontrol.server import create_hid_server
 from joycontrol.memory import FlashMemory
 
-class KeyboardState():
+class KeyboardState:
     def __init__(self):
         # key order: up, down, left, right, space, c, enter
         self.keys = {
@@ -66,6 +65,8 @@ class KeyboardState():
             self.keys['r'] = False
             self.keys['l'] = False
 
+
+
 # adapted from button_push() in controller_state.py
 async def main_loop(controller_state, keyboard_state):
     button_state = controller_state.button_state
@@ -88,6 +89,8 @@ async def main_loop(controller_state, keyboard_state):
     await controller_state.send()
     # await asyncio.sleep(1/60)
 
+
+
 async def _main(bt_addr):
     # connect via bluetooth
     # TODO: add some error handling for opening the spi file
@@ -103,25 +106,24 @@ async def _main(bt_addr):
 
     # start key listener thread
     keyboard_state = KeyboardState()
-    listener = None
-    try:
-        listener = Listener(on_press=keyboard_state.key_down, on_release=keyboard_state.key_up,
-            suppress=True)
-    except:
-        raise
-    finally:
-        listener.start()
+    listener = Listener(on_press=keyboard_state.key_down, on_release=keyboard_state.key_up,
+        suppress=True)
+    listener.start()
 
     # await button_push(controller_state, 'home', sec=5)
     pastTime = time.time()
     while listener.running:
         await main_loop(controller_state, keyboard_state)
+        # For debugging: display how long it takes to send the controller state
         # currTime = time.time()
         # print(currTime - pastTime)
         # pastTime = currTime
 
+
+
 if __name__ == '__main__':
     bt_addr = None
+    # use a specific switch BT address if one is given
     if len(sys.argv) >= 2:
         bt_addr = sys.argv[1]
 
