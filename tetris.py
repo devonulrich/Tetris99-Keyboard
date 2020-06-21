@@ -10,13 +10,6 @@ from joycontrol.protocol import controller_protocol_factory
 from joycontrol.server import create_hid_server
 from joycontrol.memory import FlashMemory
 
-class Direction:
-    CENTER = 0
-    UP = 1
-    DOWN = 2
-    LEFT = 3
-    RIGHT = 4
-
 class KeyboardState:
     def __init__(self):
         # key order: up, down, left, right, space, c, enter
@@ -29,8 +22,10 @@ class KeyboardState:
 			'r': False,
 			'l': False
 		}
-        self.direction = Direction.CENTER
-        self.last_dir_change = 0
+        self.left = False
+        self.right = False
+        self.up = False
+        self.down = False
 
 
     def key_down(self, key):
@@ -52,18 +47,14 @@ class KeyboardState:
             self.keys['r'] = True
             self.keys['l'] = True
 
-        elif key == KeyCode.from_char('a'):
-            self.direction = Direction.LEFT
-            self.last_dir_change = time.time()
-        elif key == KeyCode.from_char('d'):
-            self.direction = Direction.RIGHT
-            self.last_dir_change = time.time()
-        elif key == KeyCode.from_char('w'):
-            self.direction = Direction.UP
-            self.last_dir_change = time.time()
-        elif key == KeyCode.from_char('s'):
-            self.direction = Direction.DOWN
-            self.last_dir_change = time.time()
+        elif key == KeyCode.from_char('a'): # left
+            self.left = True
+        elif key == KeyCode.from_char('d'): # right
+            self.right = True
+        elif key == KeyCode.from_char('w'): # up
+            self.up = True
+        elif key == KeyCode.from_char('s'): # down
+            self.down = True
 
         elif key == Key.esc:
             # quit
@@ -86,6 +77,15 @@ class KeyboardState:
             self.keys['r'] = False
             self.keys['l'] = False
 
+        elif key == KeyCode.from_char('a'):
+            self.left = False
+        elif key == KeyCode.from_char('d'):
+            self.right = False
+        elif key == KeyCode.from_char('w'):
+            self.up = False
+        elif key == KeyCode.from_char('s'):
+            self.down = False
+
 
 
 # adapted from button_push() in controller_state.py
@@ -96,20 +96,12 @@ async def main_loop(controller_state, keyboard_state):
         button_state.set_button(key, pushed=keyboard_state.keys[key])
 
     stick_state = controller_state.r_stick_state
-    if keyboard_state.direction == Direction.LEFT:
-        stick_state.set_left()
-    elif keyboard_state.direction == Direction.RIGHT:
-        stick_state.set_right()
-    elif keyboard_state.direction == Direction.UP:
-        stick_state.set_up()
-    elif keyboard_state.direction == Direction.DOWN:
-        stick_state.set_down()
-    else:
-        stick_state.set_center()
+    calib = stick_state.get_calibration()
+    dx = keyboard_state.right - keyboard_state.left
+    dy = keyboard_state.up - keyboard_state.down
 
-    # reset to center after moving in any direction
-    if time.time() - keyboard_state.last_dir_change >= 0.25:
-        keyboard_state.direction = Direction.CENTER
+    stick_state.set_h(calib.h_center + calib.h_max_above_center * dx)
+    stick_state.set_v(calib.v_center + calib.v_max_above_center * dy)
 
     await controller_state.send()
     # await asyncio.sleep(1/60)
@@ -142,9 +134,9 @@ async def _main(bt_addr):
     while listener.running:
         await main_loop(controller_state, keyboard_state)
         # For debugging: display how long it takes to send the controller state
-        currTime = time.time()
-        print(currTime - pastTime)
-        pastTime = currTime
+        # currTime = time.time()
+        # print(currTime - pastTime)
+        # pastTime = currTime
 
 
 
